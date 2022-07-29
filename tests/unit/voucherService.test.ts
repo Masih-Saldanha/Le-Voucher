@@ -18,13 +18,77 @@ describe("voucherService test suite", () => {
   });
 
   it("should not create a repeated voucher", async () => {
-    jest.spyOn(voucherRepository, "getVoucherByCode").mockImplementationOnce((): any => { return true });
-
     const voucher = voucherServiceFactory.createVoucher();
 
-    await voucherService.createVoucher(voucher.code, voucher.discount);
+    jest.spyOn(voucherRepository, "getVoucherByCode").mockImplementationOnce((): any => {
+      return voucher
+    });
 
-    expect(voucherRepository.getVoucherByCode).toBeCalled();
-    expect(voucherService.createVoucher).toThrow()
+    const promise = voucherService.createVoucher(voucher.code, voucher.discount);
+
+    expect(promise).rejects.toEqual({ message: "Voucher already exist.", type: "conflict" });
+  });
+
+  it("should apply discount on voucher", async () => {
+    const amount = 1000;
+    const voucher = voucherServiceFactory.createVoucher();
+
+    jest.spyOn(voucherRepository, "getVoucherByCode").mockImplementationOnce((): any => {
+      return { ...voucher, used: false };
+    });
+    jest.spyOn(voucherRepository, "useVoucher").mockImplementationOnce((): any => {
+      return { ...voucher, used: true };
+    });
+
+    const promise = await voucherService.applyVoucher(voucher.code, amount);
+
+    expect(promise.amount).toBe(amount);
+    expect(promise.discount).toBe(voucher.discount);
+    expect(promise.finalAmount).toBe((amount - (amount * (voucher.discount / 100))));
+  });
+
+  it("should not apply discount on voucher for values below 100", async () => {
+    const amount = 50;
+    const voucher = voucherServiceFactory.createVoucher();
+
+    jest.spyOn(voucherRepository, "getVoucherByCode").mockImplementationOnce((): any => {
+      return { ...voucher, used: false };
+    });
+    jest.spyOn(voucherRepository, "useVoucher").mockImplementationOnce((): any => {
+      return { ...voucher, used: true };
+    });
+
+    const promise = await voucherService.applyVoucher(voucher.code, amount);
+
+    expect(promise.amount).toBe(amount);
+    expect(promise.discount).toBe(voucher.discount);
+    expect(promise.finalAmount).toBe((amount));
+  });
+
+  it("should not apply discount on used voucher", async () => {
+    const amount = 1000;
+    const voucher = voucherServiceFactory.createVoucher();
+
+    jest.spyOn(voucherRepository, "getVoucherByCode").mockImplementationOnce((): any => {
+      return { ...voucher, used: true };
+    });
+
+    const promise = await voucherService.applyVoucher(voucher.code, amount);
+
+    expect(promise.amount).toBe(amount);
+    expect(promise.discount).toBe(voucher.discount);
+    expect(promise.finalAmount).toBe((amount));
+    expect(promise.applied).toBe(false);
+  });
+
+  it("should not apply discount on invalid voucher", async () => {
+    const amount = 1000;
+    const voucher = voucherServiceFactory.createVoucher();
+
+    jest.spyOn(voucherRepository, "getVoucherByCode").mockImplementationOnce((): any => { return false });
+
+    const promise = voucherService.applyVoucher(voucher.code, amount);
+
+    expect(promise).rejects.toEqual({ message: "Voucher does not exist.", type: "conflict" });
   });
 });

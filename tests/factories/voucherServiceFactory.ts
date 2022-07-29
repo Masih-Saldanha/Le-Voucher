@@ -2,8 +2,10 @@ import { faker } from "@faker-js/faker";
 
 function createVoucher() {
     return {
+        id: randomPercentage(),
         code: faker.random.alphaNumeric(6),
         discount: randomPercentage(),
+        used: true || false
     };
 };
 
